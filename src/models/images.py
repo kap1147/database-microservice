@@ -1,11 +1,14 @@
 from pydantic import BaseModel, Field
-# from uuid import UUID
+from fastapi import UploadFile
+from uuid import UUID
 
 class RahBase(BaseModel):
     class Config:
         orm_mode = True
 
 class Image(RahBase):    
-    user_id: str
-    position: int = Field(le=9)
-    binary: bytes
+    filename: str
+    user_id: UUID  
+    day_or_night: bool
+    overview_or_details: bool
+    position: int = Field(le=10)

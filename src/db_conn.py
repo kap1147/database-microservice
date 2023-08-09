@@ -1,10 +1,14 @@
 import os
 import json
+import gridfs
 import logging
 import contextlib
 
+from io import BytesIO
 from typing import Dict
 from uuid import UUID, uuid4
+from fastapi import HTTPException
+
 from .logger import setup_logger
 
 from dotenv import load_dotenv
@@ -58,7 +62,7 @@ class DbConnection:
     def get_collection_document(self, collection_name: str, query: Dict):
         with self.get_db_conn() as conn:
             try:
-                colconn = conn[self.get_collection_from_env(collection_name)]
+                colconn = gridfs.GridFS(conn, collection=self.get_collection_from_env(collection_name))
                 return colconn.find_one(query)
             except Exception as e:
                 self.app_logger.exception(e)
@@ -67,8 +71,9 @@ class DbConnection:
     def post_collection_document(self, collection_name: str, query: Dict):
         with self.get_db_conn() as conn:
             try:
-                colconn = conn[self.get_collection_from_env(collection_name)]
-                return colconn.insert_one(query)
+                colconn = gridfs.GridFS(conn, collection=self.get_collection_from_env(collection_name))
+                query["binary"] = query["binary"].getvalue()
+                return colconn.put(query['binary'], **query)
             except Exception as e:
                 self.app_logger.exception(e)
                 print(e)
