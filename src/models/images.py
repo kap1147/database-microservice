@@ -11,8 +11,7 @@ class ImagePost(RahBase):
     filename: str
     user_id: UUID  
     system_name: str
-    day_or_night: bool
-    overview_or_details: bool
+    prop_type: str
     position: int = Field(le=10)
 
 
@@ -20,6 +19,5 @@ class ImagePost(RahBase):
 class ImageGet:
     user_id: UUID
     system_name: str
-    day_or_night: bool
-    overview_or_details: bool
+    prop_type: str
     position: int

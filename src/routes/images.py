@@ -21,22 +21,20 @@ def get_image(
             db_dep : DatabaseDep,
             user_id: str = Query(None, title="User id"), 
             system_name: str = Query(None, title="System name"), 
-            day_or_night: bool = Query(None, title="Day or night"), 
-            overview_or_details: bool = Query(None, title="Overview or details"), 
+            prop_type: str = Query(None, title="Object property tyep"),
             position : int = Query(None, title="Which image"),
         ):
     try:
         ImageGet(
             user_id=UUID(user_id),
             system_name=str(system_name),
-            day_or_night=bool(day_or_night),
-            overview_or_details=bool(overview_or_details),
+            prop_type=str(prop_type),
             position=int(position)
         )
     except TypeError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    image_query = {'user_id': UUID(user_id), 'system_name': system_name, 'position': position, 'day_or_night': day_or_night, 'overview_or_details': overview_or_details}
+    image_query = {"user_id": UUID(user_id), "system_name": system_name, "position": position, "prop_type": prop_type}
     get_img = db_dep.get_collection_document(images_collection_name, image_query)
 
     if get_img:
@@ -56,7 +54,7 @@ def post_image(
         db_dep.app_logger.error(msg)
         return JSONResponse(content=msg, status_code=400)
 
-    image_post = { "_id": uuid4(), "user_id": image.user_id, "system_name": image.system_name, "position": image.position, "overview_or_details": image.overview_or_details,"day_or_night": image.day_or_night, "binary": img }  
+    image_post = { "_id": uuid4(), "user_id": image.user_id, "system_name": image.system_name, "prop_type": image.prop_type, "position": image.position, "binary": img }  
     result = db_dep.post_collection_document(images_collection_name, image_post)
     if call_validate_func_on_data(data=str(result), validate_func=UUID, app_logger=db_dep.app_logger):
         return JSONResponse(content="Successfully added document to collection", status_code=200)

@@ -5,19 +5,14 @@ from pathlib import Path
 from ..db_conn import DbDependencyServer
 from ..pillow.image_setter import pillow_image_setter
 
-bootstrapper_database_name = "BOOTSTRAPPER_DB"
-bootstrapper_collection_name = "BOOTSTRAPPER_COL"
+bootstrapper_database_name = "IMAGES_DB"
+bootstrapper_collection_name = "IMAGES_COLLECTION"
 db_dep = DbDependencyServer(bootstrapper_database_name, bootstrapper_collection_name, "bootstrapper_logger", "/var/opt/rah_startup.log")()
 base_dir = './src/bootstrahpper/assets'
 
-# TODO: maybe just use prop_type
-
-# TODO: update ImageGet to work with sun/moon props
-
-# TODO: check if admin user is created 
+# TODO: check if admin user is created. get id 
 # if not, create
 
-# get admin id from user table
 admin_id = UUID("73db01fe-741c-4219-85e6-be98c77e1b20")
 db_dep.app_logger.info("Beginning bootstrahpping!")
 
@@ -33,13 +28,14 @@ try:
         if os.path.isdir(center_mass_dir):
             expected_props = ["texture", "bumptexture", "lensflare"] 
             for body in os.listdir(center_mass_dir):
-                prop_type = body.split(".")[0]
-                if prop_type in expected_props:
+                center_mass_prop = body.split(".")[0]
+                if center_mass_prop in expected_props:
+                    center_prop_position = expected_props.index(center_mass_prop)
                     image_post = { 
                                     "user_id": admin_id, 
                                     "system_name": system_name, 
-                                    "day_or_night": is_day,
-                                    "prop_type": prop_type,
+                                    "prop_type": f"{system_type}_center_mass",
+                                    "position": center_prop_position,
                                     "binary": pillow_image_setter(f"{center_mass_dir}/{body}", db_dep.app_logger) 
                                 }  
                     db_dep.post_collection_document(bootstrapper_collection_name, image_post)
@@ -50,16 +46,17 @@ try:
                     byte_array = BytesIO()
                     try:
                         planet_position = int(body.split("_")[-1].split(".")[0])
+                        if planet_position > 11:
+                            continue
                     except ValueError as e:
                         db_dep.app_logger.error(f"Following file is not configured properly: {orbiting_mass_dir}/{body}! Last characters before the extension and after the last underscore should be a number.")
                         continue
                    
                     image_post = { 
                                     "user_id": admin_id, 
-                                    "position": planet_position, 
                                     "system_name": system_name, 
-                                    "overview_or_details": (planet_position > 9),
-                                    "day_or_night": is_day,
+                                    "prop_type": system_type,
+                                    "position": planet_position, 
                                     "binary": pillow_image_setter(f"{orbiting_mass_dir}/{body}", db_dep.app_logger) 
                                 }  
                     db_dep.post_collection_document(bootstrapper_collection_name, image_post)
