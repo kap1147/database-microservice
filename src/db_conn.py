@@ -4,13 +4,12 @@ import gridfs
 import logging
 import contextlib
 
-from io import BytesIO
 from typing import Dict
+from io import BytesIO
 from uuid import UUID, uuid4
 from fastapi import HTTPException
 
 from .logger import setup_logger
-
 from pymongo import MongoClient
 
 #todo: null check? do i even care?
@@ -25,25 +24,24 @@ class DbConnection:
     @contextlib.contextmanager
     def get_db_conn(self):
         dbuser = os.getenv("DB_USER")
-        dbpass = os.getenv("DB_PASS")
+        dbpass = os.getenv("DB_PASSWORD")
         givendb = os.getenv(self.dbname)
   
-        urlconn = f"mongodb://{dbuser}:{dbpass}@localhost:27017/"
+        urlconn = f"mongodb://{dbuser}:{dbpass}@mongodb:27017/?authMechanism=SCRAM-SHA-256&authSource=admin"
 
         if (urlconn.count("@") > 1 or urlconn.count(":") > 3):
             raise ValueError(f"Do not include string '@' or ':' in DB_USER: {dbuser} or DB_PASS: {dbpass}")
 
-        conn = MongoClient(urlconn,  UuidRepresentation='standard')
-        curr_dbs = conn.list_database_names()
-        if (givendb not in curr_dbs):
-            raise ValueError(f"Expected to have existing MongoDB database '{givendb}' but not found!")
-
+        conn = MongoClient(urlconn, uuidRepresentation='standard')
         try:
+            curr_dbs = conn.list_database_names()
+            if givendb not in curr_dbs:
+                self.app_logger.info(f"MongoDB database '{givendb}' not found! Creating for the first time...")
             yield conn[givendb]
         except Exception as e:
             self.app_logger.exception(e)
-            print(e)
-        finally:                
+            raise
+        finally:
             conn.close()
 
     def get_collection_from_env(self, col_name: str):
@@ -65,7 +63,7 @@ class DbConnection:
                 colconn = gridfs.GridFS(conn, collection=self.get_collection_from_env(collection_name))
                 return colconn.find_one(query)
             except Exception as e:
-                self.app_logger.exception(e)
+                self.app_logger.exception(f"Failed to get image for query {query}:\n{e}")
                 print(e)
 
     def post_collection_document(self, collection_name: str, query: Dict):
@@ -78,8 +76,8 @@ class DbConnection:
                     return self.app_logger.info(f"Cannot add image to db. Image already exists for query: {img_get_query}")
                 return colconn.put(query['binary'], **query)
             except Exception as e:
-                self.app_logger.exception(e)
-                print((e))
+                self.app_logger.exception(f"Failed to get image for query {query}:\n{e}")
+                print(e)
 
 class DbDependencyServer:
     def __init__(self, db_name:str, db_col: str, logger_name: str, path_to_log: str):
@@ -92,4 +90,3 @@ class DbDependencyServer:
         if self.logger_name and self.path_to_log:
             return DbConnection(self.db_name, self.db_col, setup_logger(self.logger_name, self.path_to_log))
         raise ValueError("Unable to inject app's database dependency!")
-

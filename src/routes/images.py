@@ -1,3 +1,7 @@
+import requests
+import json
+import os
+
 from uuid import UUID, uuid4
 from typing import Annotated
 from io import BytesIO
@@ -5,28 +9,42 @@ from io import BytesIO
 from fastapi import APIRouter, Depends, Query, FastAPI, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from ..db_conn import DbDependencyServer
-from ..models.images import ImagePost, ImageGet
-from ..pillow.image_setter import pillow_image_setter
 from ..validator.validate import call_validate_func_on_data
+from ..pillow.image_setter import pillow_image_setter
+from ..models.images import ImagePost, ImageGet
+from ..db_conn import DbDependencyServer
 
 image_router = APIRouter()
-images_database_name = "IMAGES_DB"
+images_database_name = "DB_NAME"
 images_collection_name = "IMAGES_COLLECTION"
 db_dep = DbDependencyServer(images_database_name ,images_collection_name, "images_logger", "/var/opt/user_images/images_logger.log")
 DatabaseDep = Annotated[DbDependencyServer, Depends(db_dep)]
 
-@image_router.get("/image/")
+def validate_user(user_id: str = Query(..., title="User ID")):
+    print(user_id)
+    try:
+        response = requests.get(os.getenv("USER_URI"), params={"username": user_id})
+
+
+        print(response.text)
+        response.raise_for_status() 
+        # if not UUID(json.loads(response.text)["id"]):
+        #     raise ValueError(f"Issue found with user {user_id}: db is not a valid UUID")
+    except requests.RequestException as e:
+        raise HTTPException(status_code=400, detail="User provided is not a registered user") from e
+    return user_id
+
+@image_router.get("/image")
 def get_image(
             db_dep : DatabaseDep,
-            user_id: str = Query(None, title="User id"), 
+            user_id: str = Depends(validate_user), 
             system_name: str = Query(None, title="System name"), 
-            prop_type: str = Query(None, title="Object property tyep"),
+            prop_type: str = Query(None, title="Object property type"),
             position : int = Query(None, title="Which image"),
         ):
     try:
         ImageGet(
-            user_id=UUID(user_id),
+            user_id=str(user_id),
             system_name=str(system_name),
             prop_type=str(prop_type),
             position=int(position)
@@ -34,14 +52,15 @@ def get_image(
     except TypeError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    image_query = {"user_id": UUID(user_id), "system_name": system_name, "position": position, "prop_type": prop_type}
+    image_query = {"user_id": user_id, "system_name": system_name, "position": position, "prop_type": prop_type}
     get_img = db_dep.get_collection_document(images_collection_name, image_query)
 
     if get_img:
         return StreamingResponse(BytesIO(getattr(get_img, "binary")), media_type="image/jpeg")
+    db_dep.app_logger.error(f"Did not find image query {image_query}")
     raise HTTPException(status_code=404, detail="Item not found")
 
-@image_router.post("/image/")
+@image_router.post("/image")
 def post_image(
             db_dep : DatabaseDep,
             image: ImagePost
@@ -50,7 +69,7 @@ def post_image(
     try:
         img = pillow_image_setter(image.filename, db_dep.app_logger)
     except Exception as e:
-        msg = f"Issue loading image. Check image API logs:\n{e}"
+        msg = f"Issue posting image. Check image API logs:\n{e}"
         db_dep.app_logger.error(msg)
         return JSONResponse(content=msg, status_code=400)
 

@@ -11,7 +11,9 @@ def main():
     app = FastAPI()
 
     origins = [
-        os.getenv("RAH_TH_SIGHT"),  # Allow local development access
+        os.getenv("RAH_TH_SIGHT"),
+        os.getenv("USER_URI"),
+        os.getenv("CSRF_URI"),
     ]
 
     #Restrict in PRD

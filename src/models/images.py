@@ -9,15 +9,14 @@ class RahBase(BaseModel):
 
 class ImagePost(RahBase):    
     filename: str
-    user_id: UUID  
+    user_id: str
     system_name: str
     prop_type: str
     position: int = Field(le=10)
 
-
 @dataclass
 class ImageGet:
-    user_id: UUID
+    user_id: str
     system_name: str
     prop_type: str
     position: int
